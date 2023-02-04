@@ -1,0 +1,125 @@
+#Senior Design Sequencer
+#Andy Prater
+
+#STILL NEED TO IMPLEMENT LCD SCREEN TO DISPLAY THE FREQUENCY OF THE POTENTIOMETERs
+
+#install libraries
+from time import sleep
+from machine import pin, SPI, ADC
+
+#Global Variable Defs
+tempo_pin=28
+freq_pin=27
+output_freq=0
+note=[[0]*8]
+note_counter=0
+
+
+
+#Functioin Defs####################################################################################################
+
+#Button pressed
+def button0_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[0]=freq
+   
+def button1_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[1]=freq
+   
+def button2_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[2]=freq
+   
+def button3_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[3]=freq
+   
+def button4_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[4]=freq
+   
+def button5_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[5]=freq
+   
+def button6_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[6]=freq
+   
+def button7_pressed(change):
+    freq_voltage=ADC(freq_pin)
+    measured_freq=freq_voltage.read_u16()
+    freq=round((5000/65536)*measured_freq)# will convert the measured value to a value between 0 and 5000
+    note[7]=freq
+
+# button definitions
+button_0 =PIN(0, Pin.IN) # define pull down or pull up
+button_1 =PIN(1, Pin.IN)
+button_2 =PIN(2, Pin.IN)
+button_3 =PIN(3, Pin.IN)
+button_4 =PIN(4, Pin.IN)
+button_5 =PIN(5, Pin.IN)
+button_6 =PIN(6, Pin.IN)
+button_7 =PIN(7, Pin.IN)
+
+#ISR'S
+button_0.irq(handler=button0_pressed, trigger=Pin.IRQ_RISING)
+button_1.irq(handler=button1_pressed, trigger=Pin.IRQ_RISING)
+button_2.irq(handler=button2_pressed, trigger=Pin.IRQ_RISING)
+button_3.irq(handler=button3_pressed, trigger=Pin.IRQ_RISING)
+button_4.irq(handler=button4_pressed, trigger=Pin.IRQ_RISING)
+button_5.irq(handler=button5_pressed, trigger=Pin.IRQ_RISING)
+button_6.irq(handler=button6_pressed, trigger=Pin.IRQ_RISING)
+button_7.irq(handler=button7_pressed, trigger=Pin.IRQ_RISING)
+#####################################################################################################################
+
+
+
+#init all of the DAC pins, use chip LTC1661, pico pins 20,19 17, GP 15,14,13
+spi=SPI(1, baudrate=400000, sck=Pin(14), mosi=Pin(15), miso=Pin(12))#changed 0 to 1 for spi1 instead of spi0
+cs = Pin(13, mode=Pin.OUT, value=1)
+
+
+
+#MAIN LOOP############################################################################################################
+ while True:
+     
+    #tempo=measure tempo adc
+    tempo_voltage=ADC(tempo_pin)
+    measured_tempo=tempo_voltage.read_u16()#converts the  value into an unsigned interger
+    tempo=round((200/65536)*measured_tempo)# will convert the measured value to a value between 0 and 200
+    wait_time=tempo/60
+   
+    output_freq=note[note_counter]
+    note_counter=((note_counter+1)/8) mod 8
+     
+    #send voltage to DAC
+    #NOTE CV should range from 0 to 10 V
+    output=DAC_array[DAC_index % DAC_array_size] #DAC NEEDS TO BE ABLE TO OUTPUT 0-10 V AT LEAST
+    buff=bytearray([(0b1001<<4 | output>>6), output<<2])
+    DAC_index=DAC_index+1
+       
+    cs(0)
+    spi.write(buff) #b means byte in decimal
+    cs(1)
+     
+    sleep(wait_time)
+   
+#######################################################################################################################
+
+     
