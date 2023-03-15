@@ -1,2 +1,312 @@
-#Senior Design VCA
-#Andy Prater
+from machine import Pin, PWM, SPI, ADC
+import mcp4131
+import LCD_pico as LCD
+import time
+import utime
+import os, sys
+import _thread
+
+global attack_irq_flag
+global decay_irq_flag
+global sustain_irq_flag
+global release_irq_flag
+global attack_clr_flag
+global decay_clr_flag
+global sustain_clr_flag
+global release_clr_flag
+global attack_var
+global decay_var
+global sustain_var
+global release_var
+
+global attack_inc
+global decay_dec
+global sustain_length
+global release_dec
+
+global v
+attack_inc = 0
+attack_irq_flag = 0
+decay_irq_flag = 0
+sustain_irq_flag = 0
+release_irq_flag = 0
+
+attack_clr_flag = 0
+decay_clr_flag = 0
+sustain_clr_flag = 0
+release_clr_flag = 0
+
+v= 0
+attack_var = 0
+decay_var = 0
+sustain_var = 0
+release_var = 0
+#################################################
+#VARIABLES FOR LCD
+a0 = ADC(0)
+cs0 = Pin(13, Pin.OUT)
+s0 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
+#################################################
+#VARIABLES FOR LINEAR DIGITAL RESISTOR
+a1 = ADC(1)
+cs1 = Pin(1, Pin.OUT)
+s1 = SPI(0, sck=Pin(2), mosi=Pin(3), miso=Pin(4))
+m1 = mcp4131.MCP4131(s1, cs1)
+#################################################
+
+atk_b = Pin(12, Pin.IN, Pin.PULL_DOWN)
+delay_b = Pin(13, Pin.IN, Pin.PULL_DOWN)
+sustain_b = Pin(14, Pin.IN, Pin.PULL_DOWN)
+release_b = Pin(15, Pin.IN, Pin.PULL_DOWN)
+VCA_ENABLE = Pin(11,Pin.IN,Pin.PULL_DOWN)
+
+LCD.lcd_init()
+LCD.lcd_clear()
+
+LCD.lcd_puts("   VCA")
+
+def attack_irq(pin):
+    global attack_irq_flag
+    attack_irq_flag = 1
+
+def decay_irq(pin):
+    global decay_irq_flag
+    decay_irq_flag = 1
+    
+def sustain_irq(pin):
+    global sustain_irq_flag
+    sustain_irq_flag = 1
+
+def release_irq(pin):
+    global release_irq_flag
+    release_irq_flag = 1
+        
+def attack():
+    global v
+    global attack_var
+    global attack_clr_flag
+    v_adc = a0.read_u16()
+    v = int(v_adc/512)
+    LCD.lcd_clear()
+    LCD.lcd_goto(0,0)
+    LCD.lcd_puts("Attack:")
+    LCD.lcd_goto(8,0)
+    LCD.lcd_puts(str(attack_var))
+    LCD.lcd_goto(0,1)
+    LCD.lcd_puts("Set to:")
+    LCD.lcd_goto(8,1)
+    LCD.lcd_puts(str(v))
+    
+def decay():
+    global v
+    global decay_clr_flag
+    v_adc = a0.read_u16()
+    v = int(v_adc/512)
+    LCD.lcd_clear()
+    LCD.lcd_goto(0,0)
+    LCD.lcd_puts("Decay:")
+    LCD.lcd_goto(7,0)
+    LCD.lcd_puts(str(decay_var))
+    LCD.lcd_goto(0,1)
+    LCD.lcd_puts("Set to:")
+    LCD.lcd_goto(8,1)
+    LCD.lcd_puts(str(v))
+    
+def sustain():
+    global v
+    global sustain_clr_flag
+    global sustain_var
+    v_adc = a0.read_u16()
+    v = int(v_adc/512)
+    LCD.lcd_clear()
+    LCD.lcd_goto(0,0)
+    LCD.lcd_puts("Sustain:")
+    LCD.lcd_goto(9,0)
+    LCD.lcd_puts(str(sustain_var))
+    LCD.lcd_goto(0,1)
+    LCD.lcd_puts("Set to:")
+    LCD.lcd_goto(8,1)
+    LCD.lcd_puts(str(v))
+    
+def release():
+    global v
+    global release_clr_flag
+    v_adc = a0.read_u16()
+    v = int(v_adc/512)
+    LCD.lcd_clear()
+    LCD.lcd_goto(0,0)
+    LCD.lcd_puts("Release:")
+    LCD.lcd_goto(9,0)
+    LCD.lcd_puts(str(release_var))
+    LCD.lcd_goto(0,1)
+    LCD.lcd_puts("Set to:")
+    LCD.lcd_goto(8,1)
+    LCD.lcd_puts(str(v))
+
+
+atk_b.irq(trigger = Pin.IRQ_RISING,handler = attack_irq)
+delay_b.irq(trigger = Pin.IRQ_RISING, handler = decay_irq)
+sustain_b.irq(trigger = Pin.IRQ_RISING,handler = sustain_irq)
+release_b.irq(trigger = Pin.IRQ_RISING, handler = release_irq)
+
+def core0_thread():
+    global run_core_1
+    potval = m1.set(127)
+    direction = 1
+    sustain_start = 0
+    counter = 0
+    while True:
+        ##########GLOBAL VARIABLE###########
+        run_core_1 = True
+        while run_core_1:
+            pass
+        ####################################
+        if VCA_ENABLE.value() == 1:
+            v = a1.read_u16()
+            
+            attack_inc = float((attack_var/100))
+            decay_dec = float((decay_var/100))
+            release_dec = float((release_var/100))
+            
+            counter+=1
+            print(potval)
+            if direction == 1:
+                potval = m1.set(127-counter*attack_var)
+                #print(potval)
+                if potval <=0:
+                    potval = m1.set(0)
+                    counter = 0
+                    direction =2
+                    
+            if direction ==2:
+                potval = m1.set(0+counter*decay_var)
+                #print(potval)
+                if potval >=64:
+                    potval = m1.set(64)
+                    counter = 0
+                    direction =3
+                    
+            if direction ==3:
+                if sustain_var == counter:
+                    direction = 4
+                    counter = 0
+                else:
+                    sustain_start += 1
+                    #print(potval)
+                    
+            if direction ==4:
+                potval = m1.set(64+counter*release_var)
+                #print(potval)
+                if potval >=127:
+                    counter = 0
+                    potval = m1.set(127)
+                    direction =1
+        else:
+            m1.set(127)
+            direction = 1
+            counter = 0
+            
+def core1_thread():
+    while True:
+        global v
+        global attack_irq_flag
+        global decay_irq_flag
+        global sustain_irq_flag
+        global release_irq_flag
+        global attack_clr_flag
+        global decay_clr_flag
+        global sustain_clr_flag
+        global release_clr_flag
+        global attack_var
+        global decay_var
+        global sustain_var
+        global release_var
+        
+        global run_core_1
+        
+        #Updates "Set to" Values
+        if attack_clr_flag ==1:
+            v_adc = a0.read_u16()
+            v = int(v_adc/512)
+            v = int(float(v/127)*100)
+            if v < 100:
+                LCD.lcd_goto(10,1)
+                LCD.lcd_puts(" ")
+            LCD.lcd_goto(8,1)
+            LCD.lcd_puts(str(v))
+        elif decay_clr_flag ==1:
+            v_adc = a0.read_u16()
+            v = int(v_adc/512)
+            v = int(float(v/127)*100)
+            if v < 100:
+                LCD.lcd_goto(10,1)
+                LCD.lcd_puts(" ")
+            LCD.lcd_goto(8,1)
+            LCD.lcd_puts(str(v))
+        elif sustain_clr_flag ==1:
+            v_adc = a0.read_u16()
+            v = int(v_adc/512)
+            v = int(float(v/127)*100)
+            if v < 100:
+                LCD.lcd_goto(10,1)
+                LCD.lcd_puts(" ")
+            LCD.lcd_goto(8,1)
+            LCD.lcd_puts(str(v))
+        elif release_clr_flag ==1:
+            v_adc = a0.read_u16()
+            v = int(v_adc/512)
+            v = int(float(v/127)*100)
+            if v <100:
+                LCD.lcd_goto(10,1)
+                LCD.lcd_puts(" ")
+            LCD.lcd_goto(8,1)
+            LCD.lcd_puts(str(v))
+        ##########UPDATE GLOBAL VARIABLE##############
+        while not run_core_1:
+            pass            
+        #Updates flags and LCD Settings    
+        if attack_irq_flag ==1:
+            decay_clr_flag = 0
+            sustain_clr_flag = 0
+            release_clr_flag = 0
+            if attack_clr_flag ==1:
+                attack_var = v
+                attack_clr_flag = 0
+            attack()
+            attack_clr_flag = 1
+            attack_irq_flag = 0
+        elif decay_irq_flag ==1:
+            attack_clr_flag = 0
+            sustain_clr_flag = 0
+            release_clr_flag = 0
+            if decay_clr_flag ==1:
+                decay_var = v
+                decay_clr_flag = 0
+            decay()
+            decay_clr_flag = 1
+            decay_irq_flag = 0
+        elif sustain_irq_flag ==1:
+            attack_clr_flag = 0
+            decay_clr_flag = 0
+            release_clr_flag = 0
+            if sustain_clr_flag ==1:
+                sustain_var = v
+                sustain_clr_flag = 0
+            sustain()
+            sustain_clr_flag = 1
+            sustain_irq_flag = 0
+        elif release_irq_flag ==1:
+            attack_clr_flag = 0
+            decay_clr_flag = 0
+            sustain_clr_flag = 0
+            if release_clr_flag ==1:
+                release_var = v
+                release_clr_flag = 0
+            release()
+            release_clr_flag = 1
+            release_irq_flag = 0
+        run_core_1 = False
+        ##############################################            
+run_core_1 = False            
+_thread.start_new_thread(core1_thread, ())
+core0_thread()
