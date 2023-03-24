@@ -1,2 +1,183 @@
-#Senior Design VCO
+#Senior Design Sequencer
 #Andy Prater
+
+#STILL NEED TO IMPLEMENT LCD SCREEN TO DISPLAY THE FREQUENCY OF THE POTENTIOMETERs
+
+#install libraries
+from time import sleep
+from machine import Pin, SPI, ADC
+
+
+#Global Variable Defs
+freq_pin=27 #ADC INPUT OF THE SEQUENCER OUTPUT
+ncounter=0 # used to increment through the waveform values array
+resolution_of_LOT=30
+wait=1/(400*resolution_of_LOT)# default freq of waveform is 400 HZ
+
+c_0=8.176
+c_1=16.352
+c_2=32.703
+c_3=65.406
+c_4=130.813
+c_5=261.626
+c_6=523.251
+c_7=1046.502
+c_8=2093.005
+c_9=4186.009
+
+#DEFINE THE SINE, SQUARE, TRIANLGE, and SAWTOOTH waveform lookup tables
+
+#default output
+waveform=[0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0]
+
+sine=[3,3,4,4,4,5,5,5,5,5,
+5,4,4,4,3,3,2,1,1,1,
+0,0,0,0,0,0,1,1,1,2]
+
+square=[5,5,5,5,5,5,5,5,5,5,
+5,5,5,5,5,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0]
+
+triangle=[0,1,1,1,2,2,2,3,3,3,
+4,4,4,5,5,5,4,4,4,3,
+3,3,2,2,2,1,1,1,0,0]
+
+sawtooth=[0,1,1,1,2,2,2,3,3,3,
+4,4,4,5,5,0,1,1,1,2,
+2,2,3,3,3,4,4,4,5,5]
+
+
+#Functioin Defs####################################################################################################
+
+#Button pressed
+def button0_pressed(change):
+    global waveform
+    waveform=sine
+    print("sine")
+    print(waveform)
+    sleep(5)
+    
+def button1_pressed(change):
+    global waveform
+    waveform=square
+    print("square")
+    
+def button2_pressed(change):
+    global waveform
+    waveform=triangle
+    print("tri")
+    
+def button3_pressed(change):
+    global waveform
+    waveform=sawtooth
+    print("saw")
+    
+#Change in input freq
+# def CV_input(change):  
+#     freq_voltage=ADC(freq_pin)
+#     measured_freq=freq_voltage.read_u16()
+#     voltage=(10/65536)*measured_freq# will convert the measured value to a value between 0 and 10 V
+#     
+#     if voltage >= 9:
+#         freq=c_9*(voltage-9)+c_9
+#     if voltage >= 8:
+#         freq=c_8*(voltage-8)+c_8
+#     if voltage >= 7:
+#         freq=c_7*(voltage-7)+c_7
+#     if voltage >= 6:
+#         freq=c_6*(voltage-6)+c_6
+#     if voltage >= 5:
+#         freq=c_5*(voltage-5)+c_5
+#     if voltage >= 4:
+#         freq=c_4*(voltage-4)+c_4
+#     if voltage >= 3:
+#         freq=c_3*(voltage-3)+c_3
+#     if voltage >= 2:
+#         freq=c_2*(voltage-2)+c_2
+#     if voltage >= 1:
+#         freq=c_1*(voltage-1)+c_1
+#     if voltage >= 0:
+#         freq=c_0*voltage+c_0
+#         
+#     wait=1/(freq*resolution_of_LOT)
+
+# button definitions
+button_0 =Pin(0, Pin.IN) # define pull down or pull up
+button_1 =Pin(1, Pin.IN)
+button_2 =Pin(2, Pin.IN)
+button_3 =Pin(3, Pin.IN)
+
+#ISR'S
+button_0.irq(handler=button0_pressed, trigger=Pin.IRQ_RISING)
+button_1.irq(handler=button1_pressed, trigger=Pin.IRQ_RISING)
+button_2.irq(handler=button2_pressed, trigger=Pin.IRQ_RISING)
+button_3.irq(handler=button3_pressed, trigger=Pin.IRQ_RISING)
+
+#ISR for adc taking input freq
+#freq_pin.irq(handler=CV_input, trigger=Pin.IRQ_CHANGE)
+
+#####################################################################################################################
+
+
+
+#init all of the DAC pins, use chip LTC1661, pico pins 20,19 17, GP 15,14,13
+spi=SPI(1, baudrate=400000, sck=Pin(14), mosi=Pin(15), miso=Pin(12))#changed 0 to 1 for spi1 instead of spi0
+cs = Pin(13, mode=Pin.OUT, value=1)
+
+waveform=sine #debug
+
+#MAIN LOOP############################################################################################################
+while True:
+    
+    
+#     #Measuring the input cv to calculte the frequency and then finding the wait time between intervals
+#     freq_voltage=ADC(freq_pin)
+#     measured_freq=freq_voltage.read_u16()
+#     voltage=(10/65536)*measured_freq# will convert the measured value to a value between 0 and 10 V
+#     
+#     if voltage >= 9:
+#         freq=c_9*(voltage-9)+c_9
+#     if voltage >= 8 and voltage < 9:
+#         freq=c_8*(voltage-8)+c_8
+#     if voltage >= 7 and voltage< 8:
+#         freq=c_7*(voltage-7)+c_7
+#     if voltage >= 6 and voltage < 7 :
+#         freq=c_6*(voltage-6)+c_6
+#     if voltage >= 5 and voltage < 6:
+#         freq=c_5*(voltage-5)+c_5
+#     if voltage >= 4 and voltage < 5:
+#         freq=c_4*(voltage-4)+c_4
+#     if voltage >= 3 and voltage < 4:
+#         freq=c_3*(voltage-3)+c_3
+#     if voltage >= 2 and voltage < 3:
+#         freq=c_2*(voltage-2)+c_2
+#     if voltage >= 1 and voltage < 2:
+#         freq=c_1*(voltage-1)+c_1
+#     if voltage >= 0 and voltage < 1:
+#         freq=c_0*voltage+c_0
+#          
+#     wait=1/(freq*resolution_of_LOT)
+    
+    output=204*waveform[ncounter] # 204 is used to scale the tables to values from 0 to 1024
+    ncounter=(ncounter+1) % resolution_of_LOT
+     
+    #send voltage to DAC
+    buff=bytearray([(0b1001<<4 | output>>6), output<<2])
+        
+    cs(0)
+    spi.write(buff) #b means byte in decimal
+    cs(1)
+    
+    #print("v", " ", voltage)#debug
+    #print("f", " " , freq)#debug
+    #print("w", " ", wait)#debug
+    #sleep(20) #debug
+     
+    #sleep(wait)
+    
+#######################################################################################################################
+     
+     
+
